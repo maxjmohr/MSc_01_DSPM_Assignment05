@@ -19,6 +19,10 @@ I hereby acknowledge that the submitted assignment is my own work. During the pr
 ```{r library}
 # load packages
 library(ggplot2)
+library(httr)
+library(rlist)
+library(tidyverse)
+library(dplyr)
 ```
 
 ***
@@ -50,8 +54,14 @@ library(ggplot2)
 </div>
 
 <div class="alert alert-block alert-info">
-6. Whithin the scope of this assignment, you do not have to request your own API key. Instead retrieve a valid key from the API Explorer. This API key enables you to perform the GET requests needed throughout this assignment. Even though this API key is not secret per se (it is publicly visible on the API Explorer website), please comply to the common secrecy practices discussed in the lecture and the tutorial: Treat the API key as a secret token. Your API key should neither appear in the code that you are submitting nor in your public GitHub repository.
+6. Within the scope of this assignment, you do not have to request your own API key. Instead retrieve a valid key from the API Explorer. This API key enables you to perform the GET requests needed throughout this assignment. Even though this API key is not secret per se (it is publicly visible on the API Explorer website), please comply to the common secrecy practices discussed in the lecture and the tutorial: Treat the API key as a secret token. Your API key should neither appear in the code that you are submitting nor in your public GitHub repository.
 </div>
+
+```{r api_key}
+# access the key from txt file
+ticketmaster_api_key <- readLines("api_keys/ticketmaster_api_key.txt", warn = FALSE)
+```
+
 
 ***
 
@@ -62,16 +72,123 @@ library(ggplot2)
 </div>
 
 ```{r ex_07}
+# perform get request
+api_content <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
+                   query = list(apikey = ticketmaster_api_key,
+                                countryCode = "DE"))
 
+api_content <- content(api_content)
 ```
+
+By briefly looking at the content of the get request, we are able to see some of the venues in Germany. At least regarding the few examples we are able to see, the type is indeed a "venue". Furthermore, te countryCode is "DE".
+
+However, not all venues have the exact same information displayed in each column. For example, one venue named "Virtual event" doesn't have any data for the column "address". Another example is the venue named "Huxleys Neue Welt" has an image while others don't.
+
+We in total have 4.745 elements that are German venues, displayed over 238 pages. One page displays 20 results.
+
 
 <div class="alert alert-block alert-info">
 8. Extract the name, the city, the postalCode and address, as well as the url and the longitude and latitude of the venues to a data frame. This data frame should have the following structure (see pdf).
 </div>
 
 ```{r ex_08}
+# Get content of German venues
+venues <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
+              query = list(apikey = ticketmaster_api_key,
+                           countryCode = "DE"))
 
+venues <- content(venues)
+
+# Get the elements per page to later on loop through each venue and get the relevant information
+elements_page <- venues[["page"]][["size"]]
+
+# The data we are looking for lies in _embedded/venues
+venues <- venues[["_embedded"]][["venues"]]
+
+results <- list()
+
+for (i in 1:elements_page) {
+  
+  results_new = list(
+    name = venues[[i]][["name"]],
+    city = venues[[i]][["city"]][["name"]],
+    postalCode = venues[[i]][["postalCode"]],
+    address = venues[[i]][["address"]][["line1"]],
+    url = venues[[i]][["url"]],
+    longitude = venues[[i]][["location"]][["longitude"]],
+    latitude = venues[[i]][["location"]][["latitude"]]
+  )
+  
+  # results_new <- list.stack(results_new)
+
+  results <- rbind(results,results_new)
+  
+  'venues_name[[i]] <- venues[[i]][["name"]]
+  venues_city[[i]] <- venues[[i]][["city"]][["name"]]
+  venues_postalCode[[i]] <- venues[[i]][["postalCode"]]
+  venues_address[[i]] <- venues[[i]][["address"]][["line1"]]
+  venues_url[[i]] <- venues[[i]][["url"]]
+  venues_longitude[[i]] <- venues[[i]][["location"]][["longitude"]]
+  venues_latitude[[i]] <- if (!is.null(venues[[i]][["location"]])) {venues[[i]][["location"]][["latitude"]]} else {NULL}'
+  
+  'venues_list <- (
+    name = venues_name,
+    city = venues_city,
+    postalCode = venues_postalCode,
+    address = venues_address,
+    url = venues_url,
+    longitude = venues_longitude,
+    latitude = venues_latitude
+  )
+  
+  venues_list <- list.stack(api_content$Search)
+  
+  results <- rbind(results,venues_list)'
+}
+
+
+
+results
+
+
+
+```{r}
+venues = requests.get("https://app.ticketmaster.com/discovery/v2/venues?",
+                        params = {"apikey": ticketmaster_api_key,
+                                  "countryCode": "DE"
+                                  }).json()
+
+# The data we are looking for lies in _embedded/venues
+venues = venues['_embedded']['venues']
+
+# Select the columns ["name","city","postalCode","address","url","location"]
+# If a venue doesn't have a certain column, the column will be filled with a None value
+venues_name       = [v['name'] if ('name' in v.keys()) else None for v in venues]
+venues_city       = [v['city']['name'] if ('city' in v.keys()) else None for v in venues]
+venues_postalCode = [v['postalCode'] if ('postalCode' in v.keys()) else None for v in venues]
+venues_address    = [v['address']['line1'] if ('address' in v.keys()) and ('line1' in v['address'].keys()) else None for v in venues]
+venues_url        = [v['url'] if ('url' in v.keys()) else None for v in venues]
+venues_longitude  = [v['location']['longitude'] if ('location' in v.keys()) and ('longitude' in v['location'].keys()) else None for v in venues]
+venues_latitude   = [v['location']['latitude'] if ('location' in v.keys()) and ('latitude' in v['location'].keys()) else None for v in venues]
+
+# Create dataframe
+venues_df = pd.DataFrame({'name': venues_name,
+                          'city': venues_city,
+                          'postalCode': venues_postalCode,
+                          'address': venues_address,
+                          'url': venues_url,
+                          'longitude': venues_longitude,
+                          'latitude': venues_latitude
+                          })
+
+# Change the formats of some columns
+venues_df = venues_df.astype({'longitude':float})
+venues_df = venues_df.astype({'latitude':float})
+
+venues_df
+# venues_df.dtypes  # to check the data types of columns
 ```
+
 
 ***
 
