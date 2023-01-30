@@ -15174,7 +15174,7 @@ version of the project to your local computer, then stage, commit, and push all 
         <span class="n">venues</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">while</span> <span class="n">venues</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">content</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://app.ticketmaster.com/discovery/v2/venues?"</span><span class="p">,</span>
-                                <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"apikey"</span><span class="p">:</span> <span class="n">ticketmaster_api_key</span><span class="p">,</span>
+                                <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"apikey"</span><span class="p">:</span> <span class="n">api_key</span><span class="p">,</span>
                                             <span class="s2">"countryCode"</span><span class="p">:</span> <span class="n">country_code</span><span class="p">,</span>
                                             <span class="s2">"size"</span><span class="p">:</span> <span class="mi">500</span><span class="p">,</span>
                                             <span class="s2">"locale"</span><span class="p">:</span> <span class="s2">"*"</span><span class="p">,</span>
