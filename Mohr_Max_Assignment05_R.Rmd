@@ -75,7 +75,8 @@ ticketmaster_api_key <- readLines("api_keys/ticketmaster_api_key.txt", warn = FA
 # perform get request
 api_content <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
                    query = list(apikey = ticketmaster_api_key,
-                                countryCode = "DE"))
+                                countryCode = "DE",
+                                locale = "*"))
 
 api_content <- content(api_content)
 ```
@@ -84,7 +85,7 @@ By briefly looking at the content of the get request, we are able to see some of
 
 However, not all venues have the exact same information displayed in each column. For example, one venue named "Virtual event" doesn't have any data for the column "address". Another example is the venue named "Huxleys Neue Welt" has an image while others don't.
 
-We in total have 4.745 elements that are German venues, displayed over 238 pages. One page displays 20 results.
+We in total have 12.934 elements that are German venues, displayed over 647 pages. One page displays 20 results.
 
 
 <div class="alert alert-block alert-info">
@@ -95,7 +96,8 @@ We in total have 4.745 elements that are German venues, displayed over 238 pages
 # Get content of German venues
 venues <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
               query = list(apikey = ticketmaster_api_key,
-                           countryCode = "DE"))
+                           countryCode = "DE",
+                           locale = "*"))
 
 venues <- content(venues)
 
@@ -105,11 +107,13 @@ elements_page <- venues[["page"]][["size"]]
 # The data we are looking for lies in _embedded/venues
 venues <- venues[["_embedded"]][["venues"]]
 
-results <- list()
+# Initialize dataframe
+venues_df <- data.frame()
 
 for (i in 1:elements_page) {
   
-  results_new = list(
+  # Fill dataframe with values of venue in i
+  venues_df_new = data.frame(
     name = venues[[i]][["name"]],
     city = venues[[i]][["city"]][["name"]],
     postalCode = venues[[i]][["postalCode"]],
@@ -118,77 +122,17 @@ for (i in 1:elements_page) {
     longitude = venues[[i]][["location"]][["longitude"]],
     latitude = venues[[i]][["location"]][["latitude"]]
   )
-  
-  # results_new <- list.stack(results_new)
 
-  results <- rbind(results,results_new)
+  # rbind the results of venue i to the rest of the dataframe
+  venues_df <- rbind(venues_df,venues_df_new)
   
-  'venues_name[[i]] <- venues[[i]][["name"]]
-  venues_city[[i]] <- venues[[i]][["city"]][["name"]]
-  venues_postalCode[[i]] <- venues[[i]][["postalCode"]]
-  venues_address[[i]] <- venues[[i]][["address"]][["line1"]]
-  venues_url[[i]] <- venues[[i]][["url"]]
-  venues_longitude[[i]] <- venues[[i]][["location"]][["longitude"]]
-  venues_latitude[[i]] <- if (!is.null(venues[[i]][["location"]])) {venues[[i]][["location"]][["latitude"]]} else {NULL}'
-  
-  'venues_list <- (
-    name = venues_name,
-    city = venues_city,
-    postalCode = venues_postalCode,
-    address = venues_address,
-    url = venues_url,
-    longitude = venues_longitude,
-    latitude = venues_latitude
-  )
-  
-  venues_list <- list.stack(api_content$Search)
-  
-  results <- rbind(results,venues_list)'
+  # Change the formats of some columns
+  venues_df$longitude <- as.numeric(venues_df$longitude)
+  venues_df$latitude <- as.numeric(venues_df$latitude)
 }
 
-
-
-results
-
-
-
-```{r}
-venues = requests.get("https://app.ticketmaster.com/discovery/v2/venues?",
-                        params = {"apikey": ticketmaster_api_key,
-                                  "countryCode": "DE"
-                                  }).json()
-
-# The data we are looking for lies in _embedded/venues
-venues = venues['_embedded']['venues']
-
-# Select the columns ["name","city","postalCode","address","url","location"]
-# If a venue doesn't have a certain column, the column will be filled with a None value
-venues_name       = [v['name'] if ('name' in v.keys()) else None for v in venues]
-venues_city       = [v['city']['name'] if ('city' in v.keys()) else None for v in venues]
-venues_postalCode = [v['postalCode'] if ('postalCode' in v.keys()) else None for v in venues]
-venues_address    = [v['address']['line1'] if ('address' in v.keys()) and ('line1' in v['address'].keys()) else None for v in venues]
-venues_url        = [v['url'] if ('url' in v.keys()) else None for v in venues]
-venues_longitude  = [v['location']['longitude'] if ('location' in v.keys()) and ('longitude' in v['location'].keys()) else None for v in venues]
-venues_latitude   = [v['location']['latitude'] if ('location' in v.keys()) and ('latitude' in v['location'].keys()) else None for v in venues]
-
-# Create dataframe
-venues_df = pd.DataFrame({'name': venues_name,
-                          'city': venues_city,
-                          'postalCode': venues_postalCode,
-                          'address': venues_address,
-                          'url': venues_url,
-                          'longitude': venues_longitude,
-                          'latitude': venues_latitude
-                          })
-
-# Change the formats of some columns
-venues_df = venues_df.astype({'longitude':float})
-venues_df = venues_df.astype({'latitude':float})
-
 venues_df
-# venues_df.dtypes  # to check the data types of columns
 ```
-
 
 ***
 
@@ -198,9 +142,129 @@ venues_df
 9. Have a closer look at the list element named page. Did your GET request from exercise (7) return all event locations in Germany? Obviously not - there are of course much more venues in Germany than those contained in this list. Your GET request only yielded the first results page containing the first 20 out of several thousands of venues. Check the API documentation under the section Venue Search. How can you request the venues from the remaining results pages? Iterate over the results pages and perform GET requests for all venues in Germany. After each iteration, extract the seven variables name, city, postalCode, address, url, longitude, and latitude. Join the information in one large data frame. Print the first 10 rows and the shape of the resulting data frame. The resulting data frame should look something like this (note that the exact number of search results may have changed since this document has been last modified) (see pdf).
 </div>
 
-```{r ex_09}
-
+```{r}
+# this function checks if for a certain variable, its value in a certain column is null
+null_check <- function(variable,first_col,second_col = NULL) {
+  
+  # for all variables that only have one column input
+  if (is.null(second_col)) {
+    
+    # first column is null -> NA
+    if (is.null(variable[[first_col]])) {
+      
+      output <- NA
+    
+    # first column is not null -> value
+    } else {
+        
+      output <- variable[[first_col]]
+    }
+  
+  # for all variables that have two input columns
+  } else {
+      
+    # second column is null -> NA
+    if (is.null(variable[[first_col]][[second_col]])) {
+          
+      output <- NA
+  
+    # second column is not null -> value
+    } else {
+        
+      output <- variable[[first_col]][[second_col]]
+    
+    }
+    
+    }
+  
+  return(output)
+}
 ```
+
+
+```{r}
+get_country_venues <- function(country_code, api_key) {
+  
+  # First get request in order to get the number of pages with at least one result
+  setup <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
+                query = list(apikey      = api_key,
+                             countryCode = country_code,
+                             size        = 500,  # set size to 500 so we have to loop through fewer pages
+                             locale      = "*"))
+  setup <- content(setup)
+  
+  # Get the number of pages that have to be looped
+  search_pages <- setup[["page"]][["totalPages"]]
+  
+  # Initialize dataframe
+  venues_df <- data.frame(name = NULL, city = NULL, postalCode = NULL, address = NULL, url = NULL, longitude = NULL, latitude = NULL)
+  
+  for (p in 1:search_pages) {
+    
+    # Enforce a rate limit as only 5 requests per second possible
+    Sys.sleep(1/5+0.00001)
+    
+    # Set default value for content_venues to NULL so the while loop is activated
+    content_venues <- NULL
+    
+    while (is.null(content_venues)) {
+      # Get request of page p-1
+      content_venues <- GET(url = "https://app.ticketmaster.com/discovery/v2/venues?",
+                                query = list(apikey      = api_key,
+                                             countryCode = country_code,
+                                             size        = 500,  # set size to 500 so we have to loop through fewer pages
+                                             locale      = "*",
+                                             page        = p-1))
+      content_venues <- content(content_venues)
+      
+      # The data we are looking for lies in _embedded/venues
+      content_venues <- content_venues[["_embedded"]][["venues"]]
+    }
+    
+    if (length(content_venues) > 0) {
+    
+      # Initialize dataframe
+      venues <- data.frame(matrix(0, ncol = 7, nrow = length(content_venues)))
+      colnames(venues) <- c("name", "city", "postalCode", "address", "url", "longitude", "latitude")
+      
+      for (i in 1:length(content_venues)){
+      
+        # for rows that don't have values in all columns write NA
+        venues$name[i]       <- null_check(content_venues[[i]],"name")
+        venues$city[i]       <- null_check(content_venues[[i]],"city","name")
+        venues$postalCode[i] <- null_check(content_venues[[i]],"postalCode")
+        venues$address[i]    <- null_check(content_venues[[i]],"address","line1")
+        venues$url[i]        <- null_check(content_venues[[i]],"url")
+        venues$longitude[i]  <- null_check(content_venues[[i]],"location","longitude")
+        venues$latitude[i]   <- null_check(content_venues[[i]],"location","latitude")
+      }
+      
+      venues_df <- rbind(venues_df,venues)
+      
+    }
+    
+  }
+  
+  # Change the formats of some columns
+  venues_df$longitude <- as.numeric(venues_df$longitude)
+  venues_df$latitude  <- as.numeric(venues_df$latitude)
+  
+  return(venues_df)
+  
+}
+```
+
+
+```{r}
+german_venues_df <- get_country_venues('DE', ticketmaster_api_key)
+
+head(german_venues_df,10)
+```
+
+```{r}
+print(dim(german_venues_df))
+```
+
 
 ***
 
@@ -211,22 +275,49 @@ venues_df
 </div>
 
 ```{r ex_10}
-ggplot() +
-  borders("world", "Germany", colour = "black", fill = "grey90") +
+plot_country_venues <- function(venues_df,country,bounds = NULL) {
+  
+  # setting out of bounds latitudes to NA
+  venues_df[, "latitude"][(venues_df[, "latitude"] < bounds$latitude[1]) | 
+                        (venues_df[, "latitude"] > bounds$latitude[2])] <- NA
+  
+  # setting out of bounds longitudes to NA
+  venues_df[, "longitude"][(venues_df[, "longitude"] < bounds$longitude[1]) | 
+                        (venues_df[, "longitude"] > bounds$longitude[2])] <- NA
+  
+  ggplot() +
+  
+  # Get map
+  borders("world", country, colour = "black", fill = "grey90") +
+  
   theme_void() +
+  
   coord_quickmap() +
-  labs(title = "Event locations across Germany",
+  
+  # Title and caption
+  labs(title = paste("Event locations across", country),
        caption = "Source: ticketmaster.com") +
   theme(title = element_text(size=8, face='bold'),
-        plot.caption = element_text(face = "italic"))
+        plot.caption = element_text(face = "italic")) + 
+  
+  # Add the points of venues
+  geom_point(aes(x = venues_df$longitude, y = venues_df$latitude), color = "blue")
+}
+
 ```
+
+```{r}
+plot_country_venues(german_venues_df, "Germany")
+```
+
 
 <div class="alert alert-block alert-info">
 11. You will find that some coordinates lie way beyond the German borders and can be assumed to be faulty. Set coordinate values to NA where the value of longitude is outside the range (5.866, 15.042) or where the value of latitude is outside the range (47.270, 55.059) (these coordinate ranges have been derived from the extreme points of Germany as listed on Wikipedia (see here). For extreme points of other countries, see here).
 </div>
 
 ```{r ex_11}
-
+bounds_germany <- list("longitude" = c(5.866, 15.042), "latitude" = c(47.270, 55.059))
+plot_country_venues(german_venues_df, "Germany", bounds_germany)
 ```
 
 ***
@@ -238,5 +329,21 @@ ggplot() +
 </div>
 
 ```{r ex_12}
+italian_venues_df <- get_country_venues('IT', ticketmaster_api_key)
 
+head(italian_venues_df,10)
 ```
+
+```{r}
+print(dim(italian_venues_df))
+```
+
+```{r}
+plot_country_venues(italian_venues_df, "Italy")
+```
+
+```{r}
+bounds_italy <- list("longitude" = c(6.616667, 18.516667), "latitude" = c(37.933333, 47.083333))
+plot_country_venues(italian_venues_df, "Italy", bounds_italy)
+```
+
